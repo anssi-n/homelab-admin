@@ -1,0 +1,162 @@
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: VaultDynamicSecret
+metadata:
+  name: etcd-backup-aws
+  namespace: kube-system
+spec:
+  path: "aws/creds/etcd-backup-role"
+  method: GET
+  provider:
+    server: https://vault.anyman.homelab:8200
+    auth:
+      kubernetes:
+        mountPath: homelab-k8s
+        role: external-secrets
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVqakNDQXZhZ0F3SUJBZ0lSQUl6UmxpUzNqeGRyZ1IrbXZaMXZBRm93RFFZSktvWklodmNOQVFFTEJRQXcKZ2FreEhqQWNCZ05WQkFvVEZXMXJZMlZ5ZENCa1pYWmxiRzl3YldWdWRDQkRRVEUvTUQwR0ExVUVDd3cyUkVWVApTMVJQVUMwNE5rSk1VVkZOWEU5dGFYTjBZV3BoUUVSRlUwdFVUMUF0T0RaQ1RGRlJUU0FvUVc1emMya2dUbmx0CllXNHBNVVl3UkFZRFZRUURERDF0YTJObGNuUWdSRVZUUzFSUFVDMDROa0pNVVZGTlhFOXRhWE4wWVdwaFFFUkYKVTB0VVQxQXRPRFpDVEZGUlRTQW9RVzV6YzJrZ1RubHRZVzRwTUI0WERUSTJNREl3TlRFek5EVTBObG9YRFRJNApNRFV3TlRFeU5EVTBObG93YWpFbk1DVUdBMVVFQ2hNZWJXdGpaWEowSUdSbGRtVnNiM0J0Wlc1MElHTmxjblJwClptbGpZWFJsTVQ4d1BRWURWUVFMRERaRVJWTkxWRTlRTFRnMlFreFJVVTFjVDIxcGMzUmhhbUZBUkVWVFMxUlAKVUMwNE5rSk1VVkZOSUNoQmJuTnphU0JPZVcxaGJpa3dnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBdwpnZ0VLQW9JQkFRRGFuTlBoVDNTNC9GOHhQZW9VQ09wR05LSVJYREhTaUY5SFBhOE1sY1hRZWNyRGtxREF1eHNpCkFGVlc4VVF6WUJwbU9taWFLR3hHd3M5SlA1RUFUZW9JWlJrQjM3bDQ5eUwrbjFIWjN6SzZkTm4rYVgwKzd0bEkKQk85cEVxQ2wwc2NaMkpUT0JJV1FXUVhGS2dKWW0vNkxDM21GaHZJRUpWK3ZEbkFPK1Z5NDRxWWE0REgwSE1ZaQplRW5yR21HK1FNZUhjRXZxTXZrcnZ4c3J3K0NtdVdOdVJFWHhTV2Vwck5JZTVUZzR6UVhFRzc1VUtveC9BTzFqCk9Lc0NhVExUSTlyanZIQ3o3UGJuOTZBZGNZeDRsY0xST0hFeUFqaW5SN0ZjdjFQdlVZSjV6YXZTbHpyTERkNm0KWG94aVF4S1IyS0pocGVNZFJOaWw2RWpXeU5rT0ZkRmpBZ01CQUFHamJ6QnRNQTRHQTFVZER3RUIvd1FFQXdJRgpvREFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQVRBZkJnTlZIU01FR0RBV2dCUlZPRGs0akpuSnovdWwwem9SCkd1a1dwcTVUOWpBbEJnTlZIUkVFSGpBY2doUjJZWFZzZEM1aGJubHRZVzR1YUc5dFpXeGhZb2NFd0tnQmx6QU4KQmdrcWhraUc5dzBCQVFzRkFBT0NBWUVBWnFwU1FaZDJMUmkxQXN3MmgzMTVGVWRyWUNtbVZCenFsM3VNMTVpcgo4Q0czRjhVL2JPZlUvdkF1cGF1T2ZrUmljV2VIRjNwM0pmamRsMHhHenJCamtTR2szMWxWdW5scnBoSlVBZzk2CnVIeWVZU2N3c2pMc3V1YTUrRGFMRjVpQnh6MzdncTczcmFkN2dyUjNuQXBmUUNSQS9yeTZ0Q3prdmo3ZU9VRlQKOXpTYXVXK09mS3FNNjJzcHpFajdtYUVDK3U2eU5lcnRoc3NyTXYrYXAxT1ppb2tpcUNrZjl0dU9YSTRRRFQ1VQpSTCt4a2k4Q1BvUndCeWo0NTZMNzNqMGpUSUtiNFcwMEFSa0JsdUlUTnJ3M2JJU2c0d0pUb3Jvai9QTUN6RVFsClU2WWhrUGhsVS9rK1Z0eStVbVpmcGV2K1plYm1DbFdJZjRQU1ZWWmgzQnE3bzJtVmxLQjQ3UFYrUk9jTUtlY24KNnhMbGpYS0wvS1cwNDNVeEpVN3k4MHhhNGNpVURBdEhNWUVZMjBTY1BISnpKd1ZSNUFxOGtxaDBMRVVLVWpqSQpnMmV4UzlOZnB2bEpsWjRDRFR6KzVTdENZNkJzSDNMSFFZdGE1bVh1Z1hiOGJ3MUVPMTUvK3ZlS1kxeUp3VEIrCklIbzJ0ZDd0S3dSOTE4eFJlTWk5dmRvNAotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: etcd-backup-credentials
+  namespace: kube-system
+spec:
+  refreshInterval: 40m
+
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+
+  target:
+    name: etcd-backup-credentials
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        AWS_ACCESS_KEY_ID: "{{ .access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .secret_key }}"
+        AWS_SESSION_TOKEN: "{{ .security_token }}"
+        AGE_RECIPIENT: "{{ .age_recipient }}"
+
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: VaultDynamicSecret
+          name: etcd-backup-aws
+
+  data:
+    - secretKey: age_recipient
+      remoteRef:
+        key: etcd-backup
+        property: AGE_PUBLIC_KEY
+    - secretKey: s3_prefix
+      remoteRef:
+        key: etcd-backup
+        property: S3_PREFIX
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+  labels:
+    app: etcd-backup
+spec:
+  schedule: "0 16 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: etcd-backup
+        spec:
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+          hostNetwork: true
+          restartPolicy: OnFailure
+          serviceAccountName: etcd-backup
+
+          containers:
+            - name: backup
+              image: harbor.anyman.homelab/utils/etcd-backup@sha256:8b0b45916f16faeeb40373ba817f9d289bbd699cf62eb4dfa11d5314f10ae4f7
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: etcd-backup-credentials
+              env:
+                - name: ETCDCTL_API
+                  value: "3"
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+                  RAW="/tmp/etcd-${TIMESTAMP}-${NODE_NAME}.db"
+                  COMP="${RAW}.zst"
+                  ENC="${COMP}.age"
+
+                  echo "=== Taking snapshot on ${NODE_NAME} ==="
+                  etcdctl snapshot save "${RAW}" \
+                    --endpoints=https://127.0.0.1:2379 \
+                    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                    --cert=/etc/kubernetes/pki/etcd/server.crt \
+                    --key=/etc/kubernetes/pki/etcd/server.key
+
+                  echo "=== Verifying snapshot ==="
+                  etcdutl snapshot status "${RAW}" --write-out=table
+
+                  echo "=== Compressing with zstd ==="
+                  zstd -T0 -c "${RAW}" > "${COMP}"
+                  rm -f "${RAW}"
+
+                  echo "=== Client-side encrypting with age ==="
+                  age -r "${AGE_RECIPIENT}" -o "${ENC}" "${COMP}"
+                  rm -f "${COMP}"       
+
+                  echo "=== Uploading encrypted snapshot ==="
+                  aws s3 cp "${ENC}" "${S3_PREFIX}/" --only-show-errors
+
+                  rm -f "${ENC}"
+                  echo "=== Backup completed successfully ==="
+              volumeMounts:
+                - name: etcd-certs
+                  mountPath: /etc/kubernetes/pki/etcd
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+
+          volumes:
+            - name: etcd-certs
+              hostPath:
+                path: /etc/kubernetes/pki/etcd
+                type: Directory
+            - name: tmp
+              emptyDir: {}
