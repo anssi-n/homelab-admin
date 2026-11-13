@@ -128,22 +128,37 @@ spec:
                   echo "=== Verifying snapshot ==="
                   etcdutl snapshot status "${RAW}" --write-out=table
 
-                  echo "=== Compressing with zstd ==="
+                  echo "=== Compressing snapshot with zstd ==="
                   zstd -T0 -c "${RAW}" > "${COMP}"
                   rm -f "${RAW}"
 
-                  echo "=== Client-side encrypting with age ==="
+                  echo "=== Encrypt etcd snapshot ==="
                   age -r "${AGE_RECIPIENT}" -o "${ENC}" "${COMP}"
                   rm -f "${COMP}"       
 
                   echo "=== Uploading encrypted snapshot ==="
                   aws s3 cp "${ENC}" "${S3_PREFIX}/" --only-show-errors
+                  rm -f "${ENC}" 
 
-                  rm -f "${ENC}"
+                  echo "=== Backup /etc/kubernetes directory ==="
+                  K8S_TAR="/tmp/kubernetes-${TIMESTAMP}-${NODE_NAME}.tar.gz"
+                  tar -czpf "${K8S_TAR}" --exclude='etc/kubernetes/tmp' -C / etc/kubernetes
+
+                  echo "=== Encrypt /etc/kubernetes archive ==="
+                  age -r "${AGE_RECIPIENT}" -o "${K8S_TAR}.age" "${K8S_TAR}"
+                  rm -f "${K8S_TAR}"
+
+                  echo "=== Uploading encrypted snapshot ==="
+                  aws s3 cp "${K8S_TAR}.age" "${S3_PREFIX}/" --only-show-errors
+                  rm -f "${K8S_TAR}.age"
+
                   echo "=== Backup completed successfully ==="
               volumeMounts:
                 - name: etcd-certs
                   mountPath: /etc/kubernetes/pki/etcd
+                  readOnly: true
+                - name: kubernetes-dir
+                  mountPath: /etc/kubernetes
                   readOnly: true
                 - name: tmp
                   mountPath: /tmp
@@ -157,6 +172,10 @@ spec:
             - name: etcd-certs
               hostPath:
                 path: /etc/kubernetes/pki/etcd
+                type: Directory
+            - name: kubernetes-dir
+              hostPath:
+                path: /etc/kubernetes
                 type: Directory
             - name: tmp
               emptyDir: {}
