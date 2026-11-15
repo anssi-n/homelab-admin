@@ -1,0 +1,194 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-restore-test
+  namespace: kube-system
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-restore-test
+  namespace: kube-system
+  labels:
+    app: etcd-restore-test
+spec:
+  schedule: "0 12 * * 1"
+  timeZone: Europe/Helsinki
+  concurrencyPolicy: Forbid
+  dnsPolicy: ClusterFirstWithHostNet
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: etcd-restore-test
+        spec:
+          restartPolicy: Never
+          serviceAccountName: etcd-restore-test
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restore-test
+              image: harbor.anyman.homelab/utils/etcd-backup@sha256:0972b0f9ef2c298384f3b240c13be388a58a82b68aef4e563868b4edd57ec262
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  set -euo pipefail
+
+                  : "${S3_PREFIX:?S3_PREFIX must be set (e.g. s3://bucket/etcd)}"
+                  : "${AGE_IDENTITY:?AGE_IDENTITY must be set}"
+                  : "${PUSHGATEWAY:?PUSHGATEWAY must be set}"
+
+                  WORK=/work
+                  mkdir -p "$WORK/tmp"
+                  export TMPDIR="$WORK/tmp"
+
+                  umask 077
+                  IDENTITY="$WORK/age-identity.txt"
+                  printf '%s\n' "$AGE_IDENTITY" > "$IDENTITY"
+                  unset AGE_IDENTITY
+
+                  S3_URI="${S3_PREFIX%/}"
+                  BUCKET="${S3_URI#s3://}"
+                  BUCKET="${BUCKET%%/*}"
+                  PREFIX="${S3_URI#s3://"$BUCKET"}"
+                  PREFIX="${PREFIX#/}"
+                  [ -n "$BUCKET" ] || { echo "cannot parse bucket from S3_PREFIX=$S3_PREFIX"; exit 1; }
+                  if [ -n "$PREFIX" ]; then LIST_PREFIX="$PREFIX/"; else LIST_PREFIX=""; fi
+                  echo "=== bucket=$BUCKET prefix=$LIST_PREFIX ==="
+
+                  newest() {
+                    aws s3api list-objects-v2 \
+                      --bucket "$BUCKET" --prefix "$LIST_PREFIX" \
+                      --query "Contents[?ends_with(Key, '$1')] | sort_by(@, &LastModified) | [-1].[Key,LastModified]" \
+                      --output text 2>/dev/null || true
+                  }
+
+                  echo "=== Locating newest snapshot ==="
+                  SNAP_TSV=$(newest '.db.zst.age')
+                  KEY=$(printf '%s' "$SNAP_TSV" | cut -f1)
+                  LASTMOD=$(printf '%s' "$SNAP_TSV" | cut -f2)
+                  { [ -n "$KEY" ] && [ "$KEY" != "None" ]; } || { echo "no snapshot under s3://$BUCKET/$LIST_PREFIX"; exit 1; }
+                  echo "=== snapshot: s3://$BUCKET/$KEY (modified $LASTMOD) ==="
+
+                  echo "=== Download + decrypt ==="
+                  aws s3 cp "s3://$BUCKET/$KEY" "$WORK/snap.zst.age" --only-show-errors
+                  age -d -i "$IDENTITY" -o "$WORK/snap.zst" "$WORK/snap.zst.age"
+                  zstd -d -q -o "$WORK/snap.db" "$WORK/snap.zst"
+                  rm -f "$WORK/snap.zst.age" "$WORK/snap.zst"
+
+                  echo "=== Snapshot contents ==="
+                  etcdutl snapshot status "$WORK/snap.db" -w table
+                  SNAP_JSON=$(etcdutl snapshot status "$WORK/snap.db" -w json)
+                  SNAP_REV=$(printf '%s' "$SNAP_JSON" | jq -er 'if type=="array" then .[0].revision else .revision end')
+                  SNAP_KEYS=$(printf '%s' "$SNAP_JSON" | jq -er 'if type=="array" then .[0].totalKey else .totalKey end')
+
+                  echo "=== restore into throwaway data dir ==="
+                  etcdutl snapshot restore "$WORK/snap.db" \
+                    --data-dir "$WORK/etcd-data" \
+                    --name drill \
+                    --initial-cluster 'drill=http://127.0.0.1:23880' \
+                    --initial-cluster-token drill \
+                    --initial-advertise-peer-urls http://127.0.0.1:23880
+
+                  echo "=== Start throwaway etcd ==="
+                  etcd --data-dir "$WORK/etcd-data" --name drill \
+                    --listen-client-urls http://127.0.0.1:23790 \
+                    --advertise-client-urls http://127.0.0.1:23790 \
+                    --listen-peer-urls http://127.0.0.1:23880 \
+                    --initial-advertise-peer-urls http://127.0.0.1:23880 \
+                    --initial-cluster 'drill=http://127.0.0.1:23880' \
+                    --initial-cluster-state new \
+                    --initial-cluster-token drill \
+                    --quota-backend-bytes 8589934592 \
+                    >"$WORK/etcd.log" 2>&1 &
+                  ETCD_PID=$!
+                  trap 'kill "$ETCD_PID" 2>/dev/null || true' EXIT
+
+                  i=0
+                  while [ "$i" -lt 60 ]; do
+                    if etcdctl --endpoints=http://127.0.0.1:23790 endpoint health >/dev/null 2>&1; then break; fi
+                    kill -0 "$ETCD_PID" 2>/dev/null || { echo "etcd died during startup:"; tail -50 "$WORK/etcd.log"; exit 1; }
+                    i=$((i + 1)); sleep 1
+                  done
+                  etcdctl --endpoints=http://127.0.0.1:23790 endpoint health
+
+                  echo "=== Assertions ==="
+                  LIVE_REV=$(etcdctl --endpoints=http://127.0.0.1:23790 endpoint status -w json \
+                    | jq -er '.[0].Status.header.revision') \
+                    || { echo "cannot read revision from endpoint status"; exit 1; }
+                  LIVE_KEYS=$(etcdctl --endpoints=http://127.0.0.1:23790 get "" --from-key --keys-only | grep -c . || true)
+                  LIVE_KEYS=${LIVE_KEYS:-0}
+                  DELTA=$(( LIVE_REV - SNAP_REV ))
+
+                  echo "=== revision: snapshot=$SNAP_REV restored=$LIVE_REV (+$DELTA) ==="
+                  echo "=== keys:     snapshot=$SNAP_KEYS restored=$LIVE_KEYS ==="
+
+                  [ "$LIVE_KEYS" -eq "$SNAP_KEYS" ] || { echo "KEY COUNT MISMATCH - restore incomplete"; exit 1; }
+                  [ "$LIVE_REV" -ge "$SNAP_REV" ]   || { echo "restored revision is BEHIND the snapshot"; exit 1; }
+                  [ "$DELTA" -le 100 ]              || { echo "restored revision $DELTA ahead of snapshot - unexplained writes"; exit 1; }
+
+                  echo "=== Verify /etc/kubernetes archive ==="
+                  K8S_TSV=$(newest '.tar.gz.age')
+                  K8S_KEY=$(printf '%s' "$K8S_TSV" | cut -f1)
+                  { [ -n "$K8S_KEY" ] && [ "$K8S_KEY" != "None" ]; } || { echo "no /etc/kubernetes archive found"; exit 1; }
+                  aws s3 cp "s3://$BUCKET/$K8S_KEY" "$WORK/k8s.tar.gz.age" --only-show-errors
+                  age -d -i "$IDENTITY" -o "$WORK/k8s.tar.gz" "$WORK/k8s.tar.gz.age"
+                  tar -tzf "$WORK/k8s.tar.gz" | grep -qx 'etc/kubernetes/pki/ca.crt'
+                  echo "=== k8s archive OK: $K8S_KEY ==="
+
+                  echo "=== Report ==="
+                  NOW=$(date -u +%s)
+                  AGE=$(jq -n --arg t "$LASTMOD" \
+                    '($t | sub("\\.[0-9]+"; "") | if endswith("Z") then . else sub("\\+00:00$"; "Z") end | fromdateiso8601) as $ts
+                     | now - $ts | floor') || AGE=-1
+
+                  printf '%s\n' \
+                    "etcd_restore_drill_last_success_timestamp_seconds $NOW" \
+                    "etcd_restore_drill_snapshot_age_seconds $AGE" \
+                    "etcd_restore_drill_revision $LIVE_REV" \
+                    "etcd_restore_drill_revision_delta $DELTA" \
+                    "etcd_restore_drill_keys_total $LIVE_KEYS" \
+                    | curl -fsS --data-binary @- "http://$PUSHGATEWAY/metrics/job/etcd-restore-test"
+
+                  echo "=== Restore test completed successfully! ==="
+              env:
+                - name: PUSHGATEWAY
+                  value: push-gateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091
+              envFrom:
+                - secretRef:
+                    name: etcd-backup-credentials
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 5Gi
+            - name: tmp
+              emptyDir: {}

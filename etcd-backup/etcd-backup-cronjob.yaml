@@ -37,6 +37,8 @@ spec:
         AWS_SECRET_ACCESS_KEY: "{{ .secret_key }}"
         AWS_SESSION_TOKEN: "{{ .security_token }}"
         AGE_RECIPIENT: "{{ .age_recipient }}"
+        AGE_IDENTITY: "{{ .age_identity }}"
+        S3_PREFIX: "{{ .s3_prefix }}"
 
   dataFrom:
     - sourceRef:
@@ -46,6 +48,10 @@ spec:
           name: etcd-backup-aws
 
   data:
+    - secretKey: age_identity
+      remoteRef:
+        key: etcd-backup
+        property: AGE_PRIVATE_KEY
     - secretKey: age_recipient
       remoteRef:
         key: etcd-backup
@@ -70,13 +76,16 @@ metadata:
   labels:
     app: etcd-backup
 spec:
-  schedule: "0 16 * * *"
+  schedule: "0 18 * * *"
+  timeZone: Europe/Helsinki
+  startingDeadlineSeconds: 3600
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       backoffLimit: 1
+      activeDeadlineSeconds: 1800
       template:
         metadata:
           labels:
@@ -97,12 +106,14 @@ spec:
 
           containers:
             - name: backup
-              image: harbor.anyman.homelab/utils/etcd-backup@sha256:8b0b45916f16faeeb40373ba817f9d289bbd699cf62eb4dfa11d5314f10ae4f7
+              image: harbor.anyman.homelab/utils/etcd-backup@sha256:0972b0f9ef2c298384f3b240c13be388a58a82b68aef4e563868b4edd57ec262
               imagePullPolicy: IfNotPresent
               envFrom:
                 - secretRef:
                     name: etcd-backup-credentials
               env:
+                - name: PUSHGATEWAY
+                  value: push-gateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091
                 - name: ETCDCTL_API
                   value: "3"
                 - name: NODE_NAME
@@ -112,21 +123,72 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
+
                   set -euo pipefail
+
+                  : "${S3_PREFIX:?S3_PREFIX must be set (e.g. s3://bucket/etcd)}"
+                  : "${AGE_RECIPIENT:?AGE_RECIPIENT must be set}"
+                  : "${PUSHGATEWAY:?PUSHGATEWAY must be set}"
+
+                  START=$(date -u +%s)
                   TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
                   RAW="/tmp/etcd-${TIMESTAMP}-${NODE_NAME}.db"
                   COMP="${RAW}.zst"
                   ENC="${COMP}.age"
 
+                  S3_URI="${S3_PREFIX%/}"
+                  BUCKET="${S3_URI#s3://}"
+                  BUCKET="${BUCKET%%/*}"
+                  PREFIX="${S3_URI#s3://"$BUCKET"}"
+                  PREFIX="${PREFIX#/}"
+                  [ -n "$BUCKET" ] || { echo "cannot parse bucket from S3_PREFIX=$S3_PREFIX"; exit 1; }
+
+                  verify() {
+                    local n r
+                    n=$(wc -c < "$1")
+                    r=$(aws s3api head-object --bucket "$BUCKET" --key "$2" \
+                          --query ContentLength --output text)
+                    [ "$n" -eq "$r" ] || {
+                      echo "size mismatch for s3://$BUCKET/$2: local=$n remote=$r"
+                      return 1
+                    }
+                    printf '%s' "$n"
+                  }
+
+                  echo "=== Tools ==="
+                  etcd --version
+                  etcdctl version
+                  etcdutl version
+                  echo "bucket=$BUCKET prefix=${PREFIX:-<bucket-root>} node=$NODE_NAME"
+
                   echo "=== Taking snapshot on ${NODE_NAME} ==="
+                  SNAP_START=$(date -u +%s)
                   etcdctl snapshot save "${RAW}" \
                     --endpoints=https://127.0.0.1:2379 \
                     --cacert=/etc/kubernetes/pki/etcd/ca.crt \
                     --cert=/etc/kubernetes/pki/etcd/server.crt \
                     --key=/etc/kubernetes/pki/etcd/server.key
+                  SNAP_SECONDS=$(( $(date -u +%s) - SNAP_START ))
 
-                  echo "=== Verifying snapshot ==="
-                  etcdutl snapshot status "${RAW}" --write-out=table
+                  echo "=== Inspecting snapshot ==="
+                  SNAP_JSON=$(etcdutl snapshot status "${RAW}" -w json)
+                  SNAP_REV=$(printf '%s' "$SNAP_JSON"   | jq -er '.revision  // .[0].revision')
+                  SNAP_KEYS=$(printf '%s' "$SNAP_JSON"  | jq -er '.totalKey  // .[0].totalKey')
+                  SNAP_BYTES=$(printf '%s' "$SNAP_JSON" | jq -er '.totalSize // .[0].totalSize')
+                  ETCD_VER=$(printf '%s' "$SNAP_JSON"   | jq -er '.version   // .[0].version')
+                  echo "snapshot: revision=${SNAP_REV} keys=${SNAP_KEYS} raw_bytes=${SNAP_BYTES} etcd=${ETCD_VER} save_seconds=${SNAP_SECONDS}"
+                  [ "$SNAP_KEYS" -gt 0 ] || { echo "snapshot reports 0 keys - refusing to upload"; exit 1; }
+
+                  echo "=== Live cluster state ==="
+                  STATUS_JSON=$(etcdctl endpoint status -w json \
+                    --endpoints=https://127.0.0.1:2379 \
+                    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                    --cert=/etc/kubernetes/pki/etcd/server.crt \
+                    --key=/etc/kubernetes/pki/etcd/server.key)
+                  LIVE_REV=$(printf '%s' "$STATUS_JSON"       | jq -er '.[0].Status.header.revision')
+                  LIVE_DB=$(printf '%s' "$STATUS_JSON"        | jq -er '.[0].Status.dbSize')
+                  LIVE_DB_IN_USE=$(printf '%s' "$STATUS_JSON" | jq -er '.[0].Status.dbSizeInUse')
+                  echo "cluster: revision=${LIVE_REV} dbSize=${LIVE_DB} dbSizeInUse=${LIVE_DB_IN_USE}"
 
                   echo "=== Compressing snapshot with zstd ==="
                   zstd -T0 -c "${RAW}" > "${COMP}"
@@ -134,23 +196,55 @@ spec:
 
                   echo "=== Encrypt etcd snapshot ==="
                   age -r "${AGE_RECIPIENT}" -o "${ENC}" "${COMP}"
-                  rm -f "${COMP}"       
+                  rm -f "${COMP}"
 
                   echo "=== Uploading encrypted snapshot ==="
                   aws s3 cp "${ENC}" "${S3_PREFIX}/" --only-show-errors
-                  rm -f "${ENC}" 
+                  DB_KEY="${PREFIX:+$PREFIX/}${ENC##*/}"
+                  DB_BYTES=$(verify "${ENC}" "${DB_KEY}")
+                  rm -f "${ENC}"
+                  echo "stored s3://${BUCKET}/${DB_KEY} (${DB_BYTES} bytes)"
 
                   echo "=== Backup /etc/kubernetes directory ==="
                   K8S_TAR="/tmp/kubernetes-${TIMESTAMP}-${NODE_NAME}.tar.gz"
+                  K8S_ENC="${K8S_TAR}.age"
                   tar -czpf "${K8S_TAR}" --exclude='etc/kubernetes/tmp' -C / etc/kubernetes
+                  K8S_FILES=$(tar -tzf "${K8S_TAR}" | grep -c . || true)
+                  tar -tzf "${K8S_TAR}" | grep -qx 'etc/kubernetes/pki/etcd/server.crt' || {
+                    echo "archive is missing etc/kubernetes/pki/etcd/server.crt"
+                    exit 1
+                  }
+                  echo "archive: files=${K8S_FILES}"
 
                   echo "=== Encrypt /etc/kubernetes archive ==="
-                  age -r "${AGE_RECIPIENT}" -o "${K8S_TAR}.age" "${K8S_TAR}"
+                  age -r "${AGE_RECIPIENT}" -o "${K8S_ENC}" "${K8S_TAR}"
                   rm -f "${K8S_TAR}"
 
-                  echo "=== Uploading encrypted snapshot ==="
-                  aws s3 cp "${K8S_TAR}.age" "${S3_PREFIX}/" --only-show-errors
-                  rm -f "${K8S_TAR}.age"
+                  echo "=== Uploading encrypted archive ==="
+                  aws s3 cp "${K8S_ENC}" "${S3_PREFIX}/" --only-show-errors
+                  K8S_KEY="${PREFIX:+$PREFIX/}${K8S_ENC##*/}"
+                  K8S_BYTES=$(verify "${K8S_ENC}" "${K8S_KEY}")
+                  rm -f "${K8S_ENC}"
+                  echo "stored s3://${BUCKET}/${K8S_KEY} (${K8S_BYTES} bytes)"
+
+                  echo "=== Reporting to pushgateway ==="
+                  END=$(date -u +%s)
+                  printf '%s\n' \
+                    "etcd_backup_last_success_timestamp_seconds ${END}" \
+                    "etcd_backup_duration_seconds $(( END - START ))" \
+                    "etcd_backup_snapshot_duration_seconds ${SNAP_SECONDS}" \
+                    "etcd_backup_snapshot_revision ${SNAP_REV}" \
+                    "etcd_backup_snapshot_keys ${SNAP_KEYS}" \
+                    "etcd_backup_snapshot_raw_bytes ${SNAP_BYTES}" \
+                    "etcd_backup_snapshot_object_bytes ${DB_BYTES}" \
+                    "etcd_backup_kubernetes_files ${K8S_FILES}" \
+                    "etcd_backup_kubernetes_object_bytes ${K8S_BYTES}" \
+                    "etcd_backup_cluster_revision ${LIVE_REV}" \
+                    "etcd_backup_cluster_dbsize_bytes ${LIVE_DB}" \
+                    "etcd_backup_cluster_dbsize_in_use_bytes ${LIVE_DB_IN_USE}" \
+                    "etcd_backup_etcd_version_info{version=\"${ETCD_VER}\"} 1" \
+                    | curl -fsS --retry 3 --max-time 15 --data-binary @- \
+                        "http://${PUSHGATEWAY}/metrics/job/etcd-backup"
 
                   echo "=== Backup completed successfully ==="
               volumeMounts:
@@ -178,4 +272,5 @@ spec:
                 path: /etc/kubernetes
                 type: Directory
             - name: tmp
-              emptyDir: {}
+              emptyDir:
+                sizeLimit: 2Gi
