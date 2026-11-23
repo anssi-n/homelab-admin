@@ -1,0 +1,240 @@
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: VaultDynamicSecret
+metadata:
+  name: vault-backup-aws
+  namespace: vault
+spec:
+  path: "aws/creds/vault-backup-role"
+  method: GET
+  provider:
+    server: https://vault.anyman.homelab:8200
+    auth:
+      kubernetes:
+        mountPath: homelab-k8s
+        role: external-secrets
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVqakNDQXZhZ0F3SUJBZ0lSQUl6UmxpUzNqeGRyZ1IrbXZaMXZBRm93RFFZSktvWklodmNOQVFFTEJRQXcKZ2FreEhqQWNCZ05WQkFvVEZXMXJZMlZ5ZENCa1pYWmxiRzl3YldWdWRDQkRRVEUvTUQwR0ExVUVDd3cyUkVWVApTMVJQVUMwNE5rSk1VVkZOWEU5dGFYTjBZV3BoUUVSRlUwdFVUMUF0T0RaQ1RGRlJUU0FvUVc1emMya2dUbmx0CllXNHBNVVl3UkFZRFZRUURERDF0YTJObGNuUWdSRVZUUzFSUFVDMDROa0pNVVZGTlhFOXRhWE4wWVdwaFFFUkYKVTB0VVQxQXRPRFpDVEZGUlRTQW9RVzV6YzJrZ1RubHRZVzRwTUI0WERUSTJNREl3TlRFek5EVTBObG9YRFRJNApNRFV3TlRFeU5EVTBObG93YWpFbk1DVUdBMVVFQ2hNZWJXdGpaWEowSUdSbGRtVnNiM0J0Wlc1MElHTmxjblJwClptbGpZWFJsTVQ4d1BRWURWUVFMRERaRVJWTkxWRTlRTFRnMlFreFJVVTFjVDIxcGMzUmhhbUZBUkVWVFMxUlAKVUMwNE5rSk1VVkZOSUNoQmJuTnphU0JPZVcxaGJpa3dnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBdwpnZ0VLQW9JQkFRRGFuTlBoVDNTNC9GOHhQZW9VQ09wR05LSVJYREhTaUY5SFBhOE1sY1hRZWNyRGtxREF1eHNpCkFGVlc4VVF6WUJwbU9taWFLR3hHd3M5SlA1RUFUZW9JWlJrQjM3bDQ5eUwrbjFIWjN6SzZkTm4rYVgwKzd0bEkKQk85cEVxQ2wwc2NaMkpUT0JJV1FXUVhGS2dKWW0vNkxDM21GaHZJRUpWK3ZEbkFPK1Z5NDRxWWE0REgwSE1ZaQplRW5yR21HK1FNZUhjRXZxTXZrcnZ4c3J3K0NtdVdOdVJFWHhTV2Vwck5JZTVUZzR6UVhFRzc1VUtveC9BTzFqCk9Lc0NhVExUSTlyanZIQ3o3UGJuOTZBZGNZeDRsY0xST0hFeUFqaW5SN0ZjdjFQdlVZSjV6YXZTbHpyTERkNm0KWG94aVF4S1IyS0pocGVNZFJOaWw2RWpXeU5rT0ZkRmpBZ01CQUFHamJ6QnRNQTRHQTFVZER3RUIvd1FFQXdJRgpvREFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQVRBZkJnTlZIU01FR0RBV2dCUlZPRGs0akpuSnovdWwwem9SCkd1a1dwcTVUOWpBbEJnTlZIUkVFSGpBY2doUjJZWFZzZEM1aGJubHRZVzR1YUc5dFpXeGhZb2NFd0tnQmx6QU4KQmdrcWhraUc5dzBCQVFzRkFBT0NBWUVBWnFwU1FaZDJMUmkxQXN3MmgzMTVGVWRyWUNtbVZCenFsM3VNMTVpcgo4Q0czRjhVL2JPZlUvdkF1cGF1T2ZrUmljV2VIRjNwM0pmamRsMHhHenJCamtTR2szMWxWdW5scnBoSlVBZzk2CnVIeWVZU2N3c2pMc3V1YTUrRGFMRjVpQnh6MzdncTczcmFkN2dyUjNuQXBmUUNSQS9yeTZ0Q3prdmo3ZU9VRlQKOXpTYXVXK09mS3FNNjJzcHpFajdtYUVDK3U2eU5lcnRoc3NyTXYrYXAxT1ppb2tpcUNrZjl0dU9YSTRRRFQ1VQpSTCt4a2k4Q1BvUndCeWo0NTZMNzNqMGpUSUtiNFcwMEFSa0JsdUlUTnJ3M2JJU2c0d0pUb3Jvai9QTUN6RVFsClU2WWhrUGhsVS9rK1Z0eStVbVpmcGV2K1plYm1DbFdJZjRQU1ZWWmgzQnE3bzJtVmxLQjQ3UFYrUk9jTUtlY24KNnhMbGpYS0wvS1cwNDNVeEpVN3k4MHhhNGNpVURBdEhNWUVZMjBTY1BISnpKd1ZSNUFxOGtxaDBMRVVLVWpqSQpnMmV4UzlOZnB2bEpsWjRDRFR6KzVTdENZNkJzSDNMSFFZdGE1bVh1Z1hiOGJ3MUVPMTUvK3ZlS1kxeUp3VEIrCklIbzJ0ZDd0S3dSOTE4eFJlTWk5dmRvNAotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vault-backup-credentials
+  namespace: vault
+spec:
+  refreshInterval: 40m
+
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+
+  target:
+    name: vault-backup-credentials
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        AWS_ACCESS_KEY_ID: "{{ .access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .secret_key }}"
+        AWS_SESSION_TOKEN: "{{ .security_token }}"
+
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: VaultDynamicSecret
+          name: vault-backup-aws
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mkcert-ca-secret
+  namespace: vault
+spec:
+  refreshInterval: 1h0m0s
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: mkcert-ca-secret
+    deletionPolicy: Retain
+  data:
+    - secretKey: ca.crt
+      remoteRef:
+        key: mkcert
+        property: ca.crt
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-backup-config
+  namespace: vault
+data:
+  S3_PREFIX: s3://homelab-vault-backup-8d9b77f1d142604e/vault/
+  VAULT_ADDR: https://vault.anyman.homelab:8200
+  VAULT_ROLE: vault-backup-role
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-backup
+  namespace: vault
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-backup
+  namespace: vault
+  labels:
+    app: vault-backup
+spec:
+  schedule: "0 18 * * *"
+  timeZone: Europe/Helsinki
+  startingDeadlineSeconds: 3600
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: vault-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: vault-backup
+          automountServiceAccountToken: true
+
+          containers:
+            - name: backup
+              image: harbor.anyman.homelab/utils/etcd-backup@sha256:0972b0f9ef2c298384f3b240c13be388a58a82b68aef4e563868b4edd57ec262
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: vault-backup-credentials
+                - configMapRef:
+                    name: vault-backup-config
+              env:
+                - name: PUSHGATEWAY
+                  value: push-gateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091
+                - name: VAULT_AUTH_MOUNT
+                  value: homelab-k8s
+                - name: AWS_DEFAULT_REGION
+                  value: eu-north-1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  umask 077
+
+                  : "${PUSHGATEWAY:?PUSHGATEWAY must be set}"
+                  : "${S3_PREFIX:?S3_PREFIX must be set (e.g. s3://bucket/vault)}"
+                  : "${VAULT_ADDR:?VAULT_ADDR must be set}"
+                  : "${VAULT_ROLE:?VAULT_ROLE must be set}"
+                  : "${VAULT_AUTH_MOUNT:?VAULT_AUTH_MOUNT must be set}"
+                  : "${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION must be set}"
+
+                  START=$(date -u +%s)
+                  TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+                  BACKUP_FILE=$(mktemp /tmp/vault-raft-XXXXXX)
+
+                  cleanup() {
+                    rc=$?
+                    rm -f "${BACKUP_FILE}"
+                    if [ "${rc}" -ne 0 ]; then
+                      printf 'vault_backup_last_failure_timestamp_seconds %s\n' "$(date -u +%s)" \
+                        | curl -fsS --max-time 10 --data-binary @- \
+                            "http://${PUSHGATEWAY}/metrics/job/vault-backup" || true
+                    fi
+                    exit "${rc}"
+                  }
+                  trap cleanup EXIT
+
+                  S3_URI="${S3_PREFIX%/}"
+                  BUCKET="${S3_URI#s3://}"
+                  BUCKET="${BUCKET%%/*}"
+                  PREFIX="${S3_URI#s3://"$BUCKET"}"
+                  PREFIX="${PREFIX#/}"
+                  [ -n "${BUCKET}" ] || { echo "cannot parse bucket from S3_PREFIX=${S3_PREFIX}" >&2; exit 1; }
+                  OBJECT_KEY="${PREFIX:+$PREFIX/}vault-raft-${TIMESTAMP}.snap"
+
+                  echo "=== Authenticate with Vault ==="
+                  KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                  LOGIN_JSON=$(jq -nc --arg jwt "${KUBE_TOKEN}" --arg role "${VAULT_ROLE}" \
+                    '{jwt: $jwt, role: $role}')
+                  LOGIN_RESP=$(curl -sS --cacert /vault/tls/ca.crt \
+                    -H 'Content-Type: application/json' -d "${LOGIN_JSON}" \
+                    --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 \
+                    -w '\n%{http_code}' \
+                    "${VAULT_ADDR}/v1/auth/${VAULT_AUTH_MOUNT}/login")
+                  LOGIN_CODE=$(printf '%s' "${LOGIN_RESP}" | tail -n 1)
+                  LOGIN_BODY=$(printf '%s' "${LOGIN_RESP}" | sed '$d')
+                  [ "${LOGIN_CODE}" = 200 ] || {
+                    echo "Vault login failed (HTTP ${LOGIN_CODE}): ${LOGIN_BODY}" >&2
+                    exit 1
+                  }
+                  VAULT_TOKEN=$(printf '%s' "${LOGIN_BODY}" | jq -er '.auth.client_token')
+
+                  echo "=== Take the Raft snapshot via API ==="
+                  SNAP_START=$(date -u +%s)
+                  curl -sS --cacert /vault/tls/ca.crt --fail --request GET \
+                    --header "X-Vault-Token: ${VAULT_TOKEN}" \
+                    --connect-timeout 10 --max-time 600 --retry 3 --retry-delay 2 \
+                    -o "${BACKUP_FILE}" \
+                    "${VAULT_ADDR}/v1/sys/storage/raft/snapshot"
+                  SNAP_SECONDS=$(( $(date -u +%s) - SNAP_START ))
+                  [ -s "${BACKUP_FILE}" ] || { echo "empty snapshot" >&2; exit 1; }
+                  gzip -t "${BACKUP_FILE}" || { echo "snapshot failed gzip check" >&2; exit 1; }
+                  SNAP_BYTES=$(stat -c %s "${BACKUP_FILE}")
+                  echo "snapshot: ${SNAP_BYTES} bytes in ${SNAP_SECONDS}s"
+
+                  echo "=== Uploading snapshot to S3 ==="
+                  aws --region "${AWS_DEFAULT_REGION}" s3 cp "${BACKUP_FILE}" \
+                    "s3://${BUCKET}/${OBJECT_KEY}" --only-show-errors
+                  REMOTE_BYTES=$(aws --region "${AWS_DEFAULT_REGION}" s3api head-object \
+                    --bucket "${BUCKET}" --key "${OBJECT_KEY}" \
+                    --query ContentLength --output text)
+                  [ "${SNAP_BYTES}" = "${REMOTE_BYTES}" ] || {
+                    echo "size mismatch: local=${SNAP_BYTES} remote=${REMOTE_BYTES}" >&2
+                    exit 1
+                  }
+                  echo "stored s3://${BUCKET}/${OBJECT_KEY} (${REMOTE_BYTES} bytes)"
+
+                  echo "=== Revoke temporary Vault token ==="
+                  curl -sS --cacert /vault/tls/ca.crt -X POST \
+                    -H "X-Vault-Token: ${VAULT_TOKEN}" \
+                    "${VAULT_ADDR}/v1/auth/token/revoke-self" >/dev/null || true
+
+                  echo "=== Reporting to pushgateway ==="
+                  END=$(date -u +%s)
+                  printf '%s\n' \
+                    "vault_backup_last_success_timestamp_seconds ${END}" \
+                    "vault_backup_duration_seconds $(( END - START ))" \
+                    "vault_backup_snapshot_duration_seconds ${SNAP_SECONDS}" \
+                    "vault_backup_snapshot_raw_bytes ${SNAP_BYTES}" \
+                    | curl -fsS --retry 3 --max-time 15 --data-binary @- \
+                        "http://${PUSHGATEWAY}/metrics/job/vault-backup" \
+                    || echo "WARNING: metrics push failed (backup itself succeeded)"
+
+                  echo "=== Backup completed successfully ==="
+              volumeMounts:
+                - name: mkcert-ca
+                  mountPath: /vault/tls
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+
+          volumes:
+            - name: mkcert-ca
+              secret:
+                secretName: mkcert-ca-secret
+            - name: tmp
+              emptyDir:
+                sizeLimit: 2Gi
