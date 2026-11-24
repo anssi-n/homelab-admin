@@ -1,0 +1,12 @@
+version: v1
+volumePolicies:
+  - conditions:
+      pvcLabels:
+        app.kubernetes.io/component: database
+    action:
+      type: skip
+  - conditions:
+      pvcLabels:
+        app: redis
+    action:
+      type: skip

@@ -1,0 +1,12 @@
+version: v1
+volumePolicies:
+  - conditions:
+      pvcLabels:
+        component: registry
+    action:
+      type: skip
+  - conditions:
+      pvcLabels:
+        component: trivy
+    action:
+      type: skip
